@@ -10,11 +10,14 @@ type Props = {
 
 export function TrackRow({ track, pxPerSec, onStartDragClip }: Props): React.ReactElement {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const { setTrackPan, setTrackVolume, addClipFromFile } = useDawStore((s) => ({
+  const { setTrackPan, setTrackVolume, addClipFromFile, listEffectPacks, setTrackEffectPack } = useDawStore((s) => ({
     setTrackPan: s.setTrackPan,
     setTrackVolume: s.setTrackVolume,
     addClipFromFile: s.addClipFromFile,
+    listEffectPacks: s.listEffectPacks,
+    setTrackEffectPack: s.setTrackEffectPack,
   }))
+  const packs = listEffectPacks()
 
   return (
     <div className="track-row">
@@ -44,6 +47,20 @@ export function TrackRow({ track, pxPerSec, onStartDragClip }: Props): React.Rea
               onChange={(e) => setTrackPan(track.id, Number(e.target.value))}
             />
             <span>{track.pan.toFixed(2)}</span>
+          </label>
+          <label>
+            FX
+            <select
+              value={track.effectPackId || ''}
+              onChange={(e) => setTrackEffectPack(track.id, e.target.value || undefined)}
+            >
+              <option value="">None</option>
+              {packs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </label>
           <input
             ref={inputRef}
