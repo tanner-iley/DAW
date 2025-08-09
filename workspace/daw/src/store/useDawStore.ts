@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import * as Tone from 'tone'
+import { EFFECT_PACKS, createEffectNode, type EffectPack } from '../audio/effects'
 
 export type Clip = {
   id: string
@@ -16,6 +17,7 @@ export type Track = {
   pan: number // -1..1
   volumeDb: number // -60..0
   clips: Clip[]
+  effectPackId?: string
 }
 
 export type DawState = {
@@ -37,6 +39,7 @@ export type DawState = {
   moveClip: (trackId: string, clipId: string, newStartSec: number) => void
   setTrackPan: (trackId: string, pan: number) => void
   setTrackVolume: (trackId: string, volumeDb: number) => void
+  setTrackEffectPack: (trackId: string, packId?: string) => void
   play: () => Promise<void>
   pause: () => void
   stop: () => void
@@ -47,11 +50,13 @@ export type DawState = {
   setBeatsPerBar: (n: number) => void
   toggleMetronome: () => void
   setMetronomeVolumeDb: (db: number) => void
+  listEffectPacks: () => EffectPack[]
 }
 
 // Internal audio graph per track
 type TrackAudioGraph = {
   panVol: Tone.PanVol
+  effectsChain: Tone.ToneAudioNode[]
   playersByClipId: Map<string, Tone.Player>
 }
 
@@ -113,17 +118,52 @@ function cancelMetronome() {
   }
 }
 
+function rebuildTrackEffectsChain(track: Track, graph: TrackAudioGraph) {
+  // Dispose existing effects
+  for (const node of graph.effectsChain) {
+    try {
+      node.disconnect()
+    } catch {}
+    try {
+      ;(node as any).dispose?.()
+    } catch {}
+  }
+  graph.effectsChain = []
+
+  // Build new chain
+  const pack = EFFECT_PACKS.find((p) => p.id === track.effectPackId)
+  if (pack && pack.effects.length > 0) {
+    graph.effectsChain = pack.effects.map((d) => createEffectNode(d))
+  }
+
+  // Wire: players -> effects... -> panVol
+  // Players connect dynamically; here we ensure final node connects to panVol
+  const destination = graph.panVol
+  if (graph.effectsChain.length === 0) {
+    // players will connect directly to panVol during (re)build
+  } else {
+    // Chain effects sequentially
+    for (let i = 0; i < graph.effectsChain.length - 1; i++) {
+      graph.effectsChain[i].connect(graph.effectsChain[i + 1])
+    }
+    // last to panVol
+    graph.effectsChain[graph.effectsChain.length - 1].connect(destination)
+  }
+}
+
 function getOrCreateTrackGraph(track: Track): TrackAudioGraph {
   let graph = trackIdToGraph.get(track.id)
   if (!graph) {
     const panVol = new Tone.PanVol(track.pan, track.volumeDb).toDestination()
-    graph = { panVol, playersByClipId: new Map() }
+    graph = { panVol, playersByClipId: new Map(), effectsChain: [] }
     trackIdToGraph.set(track.id, graph)
   }
   // update params
   const current = trackIdToGraph.get(track.id)!
   current.panVol.pan.value = track.pan
   current.panVol.volume.value = track.volumeDb
+  // ensure effects
+  rebuildTrackEffectsChain(track, current)
   return current
 }
 
@@ -193,6 +233,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       pan: 0,
       volumeDb: -6,
       clips: [],
+      effectPackId: undefined,
     },
   ],
   isPlaying: false,
@@ -209,7 +250,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((state) => ({
       tracks: [
         ...state.tracks,
-        { id: nanoid(), name: `Track ${state.tracks.length + 1}`, pan: 0, volumeDb: -6, clips: [] },
+        { id: nanoid(), name: `Track ${state.tracks.length + 1}`, pan: 0, volumeDb: -6, clips: [], effectPackId: undefined },
       ],
     })),
 
@@ -254,6 +295,9 @@ export const useDawStore = create<DawState>((set, get) => ({
   setTrackVolume: (trackId, volumeDb) =>
     set((state) => ({ tracks: state.tracks.map((t) => (t.id === trackId ? { ...t, volumeDb } : t)) })),
 
+  setTrackEffectPack: (trackId, packId) =>
+    set((state) => ({ tracks: state.tracks.map((t) => (t.id === trackId ? { ...t, effectPackId: packId } : t)) })),
+
   play: async () => {
     await ensureTransportStarted()
 
@@ -268,9 +312,10 @@ export const useDawStore = create<DawState>((set, get) => ({
 
     for (const track of tracks) {
       const graph = getOrCreateTrackGraph(track)
+      const targetNode = graph.effectsChain.length > 0 ? graph.effectsChain[0] : graph.panVol
       for (const clip of track.clips) {
         const player = new Tone.Player({ url: clip.url, autostart: false })
-        player.connect(graph.panVol)
+        player.connect(targetNode)
         player.sync().start(clip.startSec)
         graph.playersByClipId.set(clip.id, player)
       }
@@ -384,4 +429,6 @@ export const useDawStore = create<DawState>((set, get) => ({
     set({ metronomeVolumeDb: Math.max(-60, Math.min(0, db)) })
     if (metVolume) metVolume.volume.value = Math.max(-60, Math.min(0, db))
   },
+
+  listEffectPacks: () => EFFECT_PACKS,
 }))
