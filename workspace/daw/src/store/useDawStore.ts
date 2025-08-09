@@ -21,12 +21,15 @@ export type Track = {
 export type DawState = {
   tracks: Track[]
   isPlaying: boolean
+  isRecording: boolean
+  recordingTrackId?: string
   currentSec: number
   pxPerSec: number
   // actions
   addTrack: () => void
   removeTrack: (trackId: string) => void
   addClipFromFile: (trackId: string, file: File) => Promise<void>
+  addClipFromBlob: (trackId: string, blob: Blob, name: string, startSec: number) => Promise<void>
   moveClip: (trackId: string, clipId: string, newStartSec: number) => void
   setTrackPan: (trackId: string, pan: number) => void
   setTrackVolume: (trackId: string, volumeDb: number) => void
@@ -34,6 +37,8 @@ export type DawState = {
   pause: () => void
   stop: () => void
   setPxPerSec: (v: number) => void
+  startRecording: (trackId: string) => Promise<void>
+  stopRecording: () => Promise<void>
 }
 
 // Internal audio graph per track
@@ -44,6 +49,12 @@ type TrackAudioGraph = {
 
 const trackIdToGraph = new Map<string, TrackAudioGraph>()
 let transportStarted = false
+
+// Recording internals (non-serializable)
+let mediaStream: MediaStream | null = null
+let mediaRecorder: MediaRecorder | null = null
+let recChunks: Blob[] = []
+let recStartSec = 0
 
 async function ensureTransportStarted() {
   await Tone.start()
@@ -90,6 +101,36 @@ async function getFileDurationSec(file: File): Promise<number> {
   return audioBuffer.duration
 }
 
+async function getBlobDurationSec(blob: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio()
+    let resolved = false
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true
+        URL.revokeObjectURL(url)
+      }
+    }
+    const finish = () => {
+      if (!resolved) {
+        resolved = true
+        const duration = Number.isFinite(audio.duration) ? audio.duration : 0
+        URL.revokeObjectURL(url)
+        resolve(duration)
+      }
+    }
+    audio.preload = 'metadata'
+    audio.src = url
+    audio.onloadedmetadata = finish
+    audio.ondurationchange = finish
+    audio.onerror = () => {
+      cleanup()
+      resolve(0)
+    }
+  })
+}
+
 function fileToObjectUrl(file: File): string {
   return URL.createObjectURL(file)
 }
@@ -105,6 +146,8 @@ export const useDawStore = create<DawState>((set, get) => ({
     },
   ],
   isPlaying: false,
+  isRecording: false,
+  recordingTrackId: undefined,
   currentSec: 0,
   pxPerSec: 100,
 
@@ -128,6 +171,15 @@ export const useDawStore = create<DawState>((set, get) => ({
       startSec: 0,
       durationSec,
     }
+    set((state) => ({
+      tracks: state.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, newClip] } : t)),
+    }))
+  },
+
+  addClipFromBlob: async (trackId, blob, name, startSec) => {
+    const url = URL.createObjectURL(blob)
+    const durationSec = await getBlobDurationSec(blob)
+    const newClip: Clip = { id: nanoid(), name, url, startSec, durationSec }
     set((state) => ({
       tracks: state.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, newClip] } : t)),
     }))
@@ -183,4 +235,60 @@ export const useDawStore = create<DawState>((set, get) => ({
   },
 
   setPxPerSec: (v: number) => set({ pxPerSec: Math.max(10, Math.min(800, v)) }),
+
+  startRecording: async (trackId: string) => {
+    if (get().isRecording) return
+    // Request mic
+    if (!mediaStream) {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (e) {
+        console.error('Microphone permission denied or unavailable', e)
+        return
+      }
+    }
+
+    await ensureTransportStarted()
+
+    const options: MediaRecorderOptions = {}
+    // pick a supported mime type if available
+    const preferredTypes = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg;codecs=opus',
+    ]
+    for (const t of preferredTypes) {
+      if ((window as any).MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+        options.mimeType = t
+        break
+      }
+    }
+
+    mediaRecorder = new MediaRecorder(mediaStream!, options)
+    recChunks = []
+    recStartSec = Tone.Transport.seconds
+    mediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) recChunks.push(ev.data)
+    }
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
+      const startAt = recStartSec
+      const name = 'Recording'
+      await get().addClipFromBlob(trackId, blob, name, startAt)
+    }
+
+    mediaRecorder.start()
+    set({ isRecording: true, recordingTrackId: trackId })
+  },
+
+  stopRecording: async () => {
+    if (!get().isRecording) return
+    try {
+      mediaRecorder?.stop()
+    } catch (e) {
+      console.warn('Failed to stop recorder', e)
+    }
+    set({ isRecording: false, recordingTrackId: undefined })
+  },
 }))
