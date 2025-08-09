@@ -25,6 +25,10 @@ export type DawState = {
   recordingTrackId?: string
   currentSec: number
   pxPerSec: number
+  bpm: number
+  beatsPerBar: number
+  metronomeEnabled: boolean
+  metronomeVolumeDb: number
   // actions
   addTrack: () => void
   removeTrack: (trackId: string) => void
@@ -39,6 +43,10 @@ export type DawState = {
   setPxPerSec: (v: number) => void
   startRecording: (trackId: string) => Promise<void>
   stopRecording: () => Promise<void>
+  setBpm: (bpm: number) => void
+  setBeatsPerBar: (n: number) => void
+  toggleMetronome: () => void
+  setMetronomeVolumeDb: (db: number) => void
 }
 
 // Internal audio graph per track
@@ -56,10 +64,52 @@ let mediaRecorder: MediaRecorder | null = null
 let recChunks: Blob[] = []
 let recStartSec = 0
 
+// Metronome internals
+let metVolume: Tone.Volume | null = null
+let metSynth: Tone.Synth | null = null
+let metRepeatId: number | null = null
+let metBeatCounter = 0
+
 async function ensureTransportStarted() {
   await Tone.start()
   if (!transportStarted) {
     transportStarted = true
+  }
+}
+
+function ensureMetronomeNodes(volumeDb: number) {
+  if (!metVolume) {
+    metVolume = new Tone.Volume(volumeDb).toDestination()
+  }
+  if (!metSynth) {
+    metSynth = new Tone.Synth({
+      oscillator: { type: 'square' },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.01 },
+    }).connect(metVolume!)
+  }
+  if (metVolume.volume.value !== volumeDb) {
+    metVolume.volume.value = volumeDb
+  }
+}
+
+function scheduleMetronome(beatsPerBar: number) {
+  if (!metSynth) return
+  metBeatCounter = 0
+  metRepeatId = Tone.Transport.scheduleRepeat((time) => {
+    const isAccent = metBeatCounter % beatsPerBar === 0
+    const note = isAccent ? 'C6' : 'C5'
+    const velocity = isAccent ? 1.0 : 0.6
+    metSynth!.triggerAttackRelease(note, '16n', time, velocity)
+    metBeatCounter = (metBeatCounter + 1) % Math.max(1, beatsPerBar)
+  }, '4n')
+}
+
+function cancelMetronome() {
+  if (metRepeatId != null) {
+    try {
+      Tone.Transport.clear(metRepeatId)
+    } catch {}
+    metRepeatId = null
   }
 }
 
@@ -150,6 +200,10 @@ export const useDawStore = create<DawState>((set, get) => ({
   recordingTrackId: undefined,
   currentSec: 0,
   pxPerSec: 100,
+  bpm: 120,
+  beatsPerBar: 4,
+  metronomeEnabled: false,
+  metronomeVolumeDb: -18,
 
   addTrack: () =>
     set((state) => ({
@@ -206,8 +260,12 @@ export const useDawStore = create<DawState>((set, get) => ({
     // Build players and sync to transport
     disposeAllPlayers()
     stopAndClearTransport()
+    cancelMetronome()
 
-    const { tracks } = get()
+    const { tracks, bpm, metronomeEnabled, metronomeVolumeDb, beatsPerBar } = get()
+
+    Tone.Transport.bpm.value = bpm
+
     for (const track of tracks) {
       const graph = getOrCreateTrackGraph(track)
       for (const clip of track.clips) {
@@ -216,6 +274,11 @@ export const useDawStore = create<DawState>((set, get) => ({
         player.sync().start(clip.startSec)
         graph.playersByClipId.set(clip.id, player)
       }
+    }
+
+    if (metronomeEnabled) {
+      ensureMetronomeNodes(metronomeVolumeDb)
+      scheduleMetronome(beatsPerBar)
     }
 
     Tone.Transport.seconds = get().currentSec
@@ -231,6 +294,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   stop: () => {
     stopAndClearTransport()
     disposeAllPlayers()
+    cancelMetronome()
     set({ isPlaying: false, currentSec: 0 })
   },
 
@@ -290,5 +354,34 @@ export const useDawStore = create<DawState>((set, get) => ({
       console.warn('Failed to stop recorder', e)
     }
     set({ isRecording: false, recordingTrackId: undefined })
+  },
+
+  setBpm: (bpm: number) => {
+    bpm = Math.max(30, Math.min(300, Math.round(bpm)))
+    set({ bpm })
+    if (transportStarted) {
+      Tone.Transport.bpm.value = bpm
+    }
+  },
+
+  setBeatsPerBar: (n: number) => {
+    set({ beatsPerBar: Math.max(1, Math.min(16, Math.round(n))) })
+  },
+
+  toggleMetronome: () => {
+    const { metronomeEnabled, metronomeVolumeDb, beatsPerBar, isPlaying } = get()
+    const next = !metronomeEnabled
+    set({ metronomeEnabled: next })
+    if (next) {
+      ensureMetronomeNodes(metronomeVolumeDb)
+      if (isPlaying) scheduleMetronome(beatsPerBar)
+    } else {
+      cancelMetronome()
+    }
+  },
+
+  setMetronomeVolumeDb: (db: number) => {
+    set({ metronomeVolumeDb: Math.max(-60, Math.min(0, db)) })
+    if (metVolume) metVolume.volume.value = Math.max(-60, Math.min(0, db))
   },
 }))
