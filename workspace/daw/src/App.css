@@ -32,6 +32,8 @@ body { margin: 0; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-
 .track-controls label { display: flex; align-items: center; gap: 6px; }
 .track-controls input[type="range"] { width: 120px; }
 .track-controls select { background: #0f0f0f; color: #eee; border: 1px solid #333; border-radius: 6px; padding: 4px 6px; }
+.track-controls .rec-btn { background: #2a2a2a; color: #f66; border: 1px solid #633; }
+.track-controls .rec-btn.active { background: #6a1a1a; color: #fff; border-color: #a33; }
 
 .track-lane { position: relative; background: repeating-linear-gradient(90deg, #141414, #141414 20px, #151515 20px, #151515 40px); min-height: 64px; }
 

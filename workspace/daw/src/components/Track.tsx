@@ -10,20 +10,42 @@ type Props = {
 
 export function TrackRow({ track, pxPerSec, onStartDragClip }: Props): React.ReactElement {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const { setTrackPan, setTrackVolume, addClipFromFile, listEffectPacks, setTrackEffectPack } = useDawStore((s) => ({
+  const {
+    setTrackPan,
+    setTrackVolume,
+    addClipFromFile,
+    listEffectPacks,
+    setTrackEffectPack,
+    startRecording,
+    stopRecording,
+    isRecording,
+    recordingTrackId,
+  } = useDawStore((s) => ({
     setTrackPan: s.setTrackPan,
     setTrackVolume: s.setTrackVolume,
     addClipFromFile: s.addClipFromFile,
     listEffectPacks: s.listEffectPacks,
     setTrackEffectPack: s.setTrackEffectPack,
+    startRecording: s.startRecording,
+    stopRecording: s.stopRecording,
+    isRecording: s.isRecording,
+    recordingTrackId: s.recordingTrackId,
   }))
   const packs = listEffectPacks()
+  const thisTrackRecording = isRecording && recordingTrackId === track.id
 
   return (
     <div className="track-row">
       <div className="track-header">
         <div className="track-title">{track.name}</div>
         <div className="track-controls">
+          <button
+            className={thisTrackRecording ? 'rec-btn active' : 'rec-btn'}
+            onClick={() => (thisTrackRecording ? stopRecording() : startRecording(track.id))}
+            title={thisTrackRecording ? 'Stop Recording' : 'Start Recording'}
+          >
+            {thisTrackRecording ? 'Stop Rec' : 'Rec'}
+          </button>
           <label>
             Vol
             <input

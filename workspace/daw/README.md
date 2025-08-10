@@ -1,69 +1,56 @@
-# React + TypeScript + Vite
+# Mini DAW
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A minimal web-based DAW built with React, TypeScript, Vite, Tone.js and Zustand. It supports multi-track audio clips, drag-to-move, per-track volume/pan, recording from microphone, tempo and metronome, and per-track effect packs.
 
-Currently, two official plugins are available:
+## Quickstart
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Prerequisites:
+- Node.js 18+ and npm
 
-## Expanding the ESLint configuration
+Install and run the dev server:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd /workspace/workspace/daw
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then open the URL shown in the terminal (usually `http://localhost:5173`).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Build for production:
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
+npm run preview
 ```
+
+## Usage
+
+- Transport
+  - Play/Pause/Stop
+  - Tempo (BPM) and Beats per bar; enable Click for a metronome with accented downbeat and adjustable volume
+  - Zoom controls (pixels per second)
+- Tracks
+  - + Track to add a new track
+  - Rec to start/stop recording from microphone on that track
+  - Vol/Pan per track
+  - FX dropdown to apply an effect pack to the whole track
+  - + Clip to import an audio file; drag clips horizontally to change their start time
+
+Notes:
+- Audio starts only after a user gesture; clicking Play will initialize the AudioContext (Tone.start()).
+- Microphone recording requires browser permission. If blocked, allow mic access in the browser and try again.
+- Supported recording formats depend on the browser. The app prefers `audio/webm;codecs=opus` when available.
+- Dragging clips moves them in time; overlapping is allowed.
+
+## Tech
+- React + TypeScript (Vite)
+- Tone.js for transport, scheduling, and audio graph
+- Zustand for state
+
+## Folder structure
+- `src/store/useDawStore.ts`: Global state, audio engine wiring, transport, recording, tempo/metronome, effects
+- `src/components/Transport.tsx`: Transport bar UI
+- `src/components/Timeline.tsx`: Ruler + track lanes
+- `src/components/Track.tsx`: Track header and clip lane
+- `src/audio/effects.ts`: Effect pack definitions and node creation
