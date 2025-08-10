@@ -1,3 +1,25 @@
+## Getting Started
+
+- **Prerequisites**: Node.js 18+ and npm 9+ (npm is included with Node)
+- **Install dependencies**:
+  ```bash
+  cd /workspace/workspace/daw
+  npm install
+  ```
+- **Launch the dev server**:
+  ```bash
+  npm run dev
+  ```
+  Then open `http://localhost:5173/` in your browser.
+- **Build for production**:
+  ```bash
+  npm run build
+  ```
+- **Preview the production build**:
+  ```bash
+  npm run preview
+  ```
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
