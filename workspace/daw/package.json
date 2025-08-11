@@ -1,0 +1,74 @@
+{
+  "name": "daw-studio",
+  "version": "1.0.0",
+  "description": "A Digital Audio Workstation with recording, effects, and metronome",
+  "main": "public/electron.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "electron": "electron .",
+    "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron-pack": "npm run build && electron-builder",
+    "dist": "npm run build && electron-builder --publish=never"
+  },
+  "build": {
+    "appId": "com.daw.studio",
+    "productName": "DAW Studio",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "node_modules/**/*",
+      "public/electron.js"
+    ],
+    "mac": {
+      "category": "public.app-category.music"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "electron": "^27.0.0",
+    "tone": "^14.7.77",
+    "wavesurfer.js": "^7.0.0",
+    "react-wavesurfer": "^0.8.0",
+    "styled-components": "^6.0.8",
+    "react-icons": "^4.11.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-slider": "^2.0.6",
+    "react-color": "^2.19.3",
+    "uuid": "^9.0.0",
+    "file-saver": "^2.0.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "wait-on": "^7.0.1",
+    "electron-builder": "^24.6.4",
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "@types/uuid": "^9.0.2"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
