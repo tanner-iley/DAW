@@ -8,6 +8,11 @@ export interface Track {
   solo: boolean
   clips: AudioClip[]
   effects: Effect[]
+  // New properties for device selection
+  inputDeviceId?: string
+  outputDeviceId?: string
+  isRecording: boolean
+  recordArmed: boolean // track is armed for recording
 }
 
 export interface AudioClip {
@@ -24,4 +29,10 @@ export interface Effect {
   type: 'reverb' | 'delay' | 'compressor' | 'eq' | 'distortion'
   enabled: boolean
   parameters: Record<string, number>
+}
+
+export interface AudioDevice {
+  deviceId: string
+  label: string
+  kind: 'audioinput' | 'audiooutput'
 }
