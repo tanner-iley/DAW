@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-daw-dark text-white font-mono;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .daw-button {
+    @apply px-4 py-2 bg-daw-gray hover:bg-daw-light-gray text-white rounded-md transition-colors duration-200 font-medium;
+  }
+  
+  .daw-button-primary {
+    @apply bg-daw-accent hover:bg-daw-accent-hover;
+  }
+  
+  .daw-button-danger {
+    @apply bg-daw-red hover:bg-red-600;
+  }
+  
+  .daw-button-success {
+    @apply bg-daw-green hover:bg-green-600;
+  }
+  
+  .daw-panel {
+    @apply bg-daw-gray border border-daw-light-gray rounded-lg p-4;
+  }
+  
+  .daw-slider {
+    @apply w-full h-2 bg-daw-light-gray rounded-lg appearance-none cursor-pointer;
+  }
+  
+  .daw-slider::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 bg-daw-accent rounded-full cursor-pointer;
+  }
+  
+  .daw-slider::-moz-range-thumb {
+    @apply w-4 h-4 bg-daw-accent rounded-full cursor-pointer border-none;
+  }
+}
